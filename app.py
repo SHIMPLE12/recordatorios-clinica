@@ -33,9 +33,8 @@ if archivo_subido is not None:
         " responda OK para confirmar. ¡Gracias!"
     )
 
-    with st.container():
-      st.markdown(
-          f"**Paciente:** {row['Paciente']} | **Tlf:** {row['Telefono']}"
-      )
-      st.code(mensaje, language="text")
-      st.divider()
+    # Mostramos el mensaje completo dentro de una caja limpia con st.info
+    st.info(
+        f"**Paciente:** {row['Paciente']} &nbsp;|&nbsp; **Tlf:**"
+        f" {row['Telefono']}\n\n💬 {mensaje}"
+    )
