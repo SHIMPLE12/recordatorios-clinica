@@ -33,8 +33,14 @@ if archivo_subido is not None:
         " responda OK para confirmar. ¡Gracias!"
     )
 
-    # Mostramos el mensaje completo dentro de una caja limpia con st.info
-    st.info(
-        f"**Paciente:** {row['Paciente']} &nbsp;|&nbsp; **Tlf:**"
-        f" {row['Telefono']}\n\n💬 {mensaje}"
+    # Tarjeta limpia con letras en negro y fondo elegante
+    st.markdown(
+        f"""
+        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 12px; border: 1px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+            <p style="color: #000000; margin: 0 0 8px 0; font-size: 16px;"><b>Paciente:</b> {row['Paciente']} &nbsp;|&nbsp; <b>Tlf:</b> {row['Telefono']}</p>
+            <hr style="margin: 6px 0; border-top: 1px solid #dcdcdc;">
+            <p style="color: #000000; margin: 8px 0 0 0; font-size: 15px;">💬 {mensaje}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
     )
