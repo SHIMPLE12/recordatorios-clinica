@@ -1,97 +1,101 @@
-from datetime import datetime, timedelta
 import pandas as pd
 import streamlit as st
 
 st.set_page_config(
-    page_title="Gestor de Citas y Recordatorios",
-    page_icon="🏥",
-    layout="centered",
+    page_title="Recordatorios Clínicas", page_icon="🦷", layout="centered"
 )
 
-st.title("🏥 Gestor de Recordatorios de Citas")
+st.title("🦷 Recordatorios Automáticos para Clínicas")
 st.write(
-    "Sube el archivo Excel de la clínica. La app filtrará automáticamente"
-    " solo las citas de mañana."
+    "Sube el archivo Excel de la clínica. La app detectará automáticamente los"
+    " datos sin importar el orden o los nombres de las columnas."
 )
 
-archivo_subido = st.file_uploader(
-    "Selecciona el archivo Excel (.xlsx)", type=["xlsx"]
+uploaded_file = st.file_uploader(
+    "Selecciona el archivo Excel (.xlsx)", type=["xlsx", "xls"]
 )
 
-if archivo_subido is not None:
-  df = pd.read_excel(archivo_subido)
+if uploaded_file is not None:
+  try:
+    # 1. Leer el archivo Excel
+    df = pd.read_excel(uploaded_file)
 
-  # Normalizar nombres de columnas por si acaso vienen con mayúsculas/minúsculas
-  df.columns = df.columns.str.strip()
-  if "Teléfono" in df.columns:
-    df.rename(columns={"Teléfono": "Telefono"}, inplace=True)
+    # 2. Normalizar nombres de columnas (quitar espacios y pasar a minúsculas)
+    df.columns = df.columns.astype(str).str.strip()
 
-  # Eliminar filas donde falte el paciente o el teléfono
-  df = df.dropna(subset=["Paciente", "Telefono"])
+    # 3. Diccionario de sinónimos para encontrar columnas clave
+    column_mapping = {
+        "paciente": [
+            "paciente",
+            "nombre",
+            "cliente",
+            "nombre paciente",
+            "nombre y apellidos",
+        ],
+        "telefono": ["telefono", "móvil", "movil", "tlf", "celular", "teléfono"],
+        "fecha": ["fecha", "dia", "día", "fecha cita"],
+        "hora": ["hora", "horario", "hora cita"],
+    }
 
-  # --- FILTRO INTELIGENTE DE FECHAS ---
-  # Si tu Excel tiene una columna llamada 'Fecha', filtramos automáticamente para mañana:
-  if "Fecha" in df.columns:
-    # Calculamos la fecha de mañana en formato YYYY-MM-DD (ajustable según tu formato de Excel)
-    mañana = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
-    # Filtramos el DataFrame para que solo salgan los de mañana
-    # (Convertimos a string por seguridad)
-    df["Fecha_str"] = pd.to_datetime(df["Fecha"]).dt.strftime("%Y-%m-%d")
-    df_filtrado = df[df["Fecha_str"] == mañana]
+    def encontrar_columna(df_cols, posibles_nombres):
+      for col in df_cols:
+        if col.lower() in posibles_nombres:
+          return col
+      return None
 
-    if df_filtrado.empty:
-      st.warning(
-          "⚠️ No se han encontrado citas para mañana en el Excel. Mostrando"
-          " todas las citas disponibles de ejemplo:"
+
+    col_paciente = encontrar_columna(df.columns, column_mapping["paciente"])
+    col_telefono = encontrar_columna(df.columns, column_mapping["telefono"])
+    col_fecha = encontrar_columna(df.columns, column_mapping["fecha"])
+    col_hora = encontrar_columna(df.columns, column_mapping["hora"])
+
+    # 4. Validar columnas obligatorias
+    if not col_paciente or not col_telefono:
+      st.error(
+          "⚠️ No se han podido detectar automáticamente las columnas de"
+          f" 'Paciente' y 'Teléfono'. Columnas encontradas: {list(df.columns)}"
       )
-      df_filtrado = df  # Si no coincide exactamente, mostramos todo para que no se quede vacío
     else:
+      # Renombrar para estandarizar
+      renombrar_dict = {
+          col_paciente: "Paciente",
+          col_telefono: "Teléfono",
+      }
+      if col_fecha:
+        renombrar_dict[col_fecha] = "Fecha"
+      if col_hora:
+        renombrar_dict[col_hora] = "Hora"
+
+      df = df.rename(columns=renombrar_dict)
+
+      # Limpiar filas vacías de pacientes
+      df = df.dropna(subset=["Paciente"])
+
       st.success(
-          f"✅ Se han filtrado automáticamente las citas para mañana"
-          f" ({mañana})."
-      )
-  else:
-    df_filtrado = (
-        df  # Si el Excel no tiene columna de fecha, usa todas las filas
-    )
-
-  # Pestañas para WhatsApp y SMS
-  tab1, tab2 = st.tabs(["📱 WhatsApp", "💬 SMS Tradicional"])
-
-  with tab1:
-    st.subheader("Mensajes para WhatsApp")
-    for _, row in df_filtrado.iterrows():
-      mensaje_wa = (
-          f"Hola {row['Paciente']}, le recordamos desde la clínica su cita"
-          f" mañana a las {row['Hora']} con {row['Fisio / Dentista']}. Por"
-          " favor, responda OK para confirmar. ¡Gracias!"
-      )
-      st.markdown(
-          f"""
-            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 12px; border: 1px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                <p style="color: #000000; margin: 0 0 8px 0; font-size: 16px;"><b>Paciente:</b> {row['Paciente']} &nbsp;|&nbsp; <b>Tlf:</b> {row['Telefono']}</p>
-                <hr style="margin: 6px 0; border-top: 1px solid #dcdcdc;">
-                <p style="color: #000000; margin: 8px 0 0 0; font-size: 15px;">💬 {mensaje_wa}</p>
-            </div>
-            """,
-          unsafe_allow_html=True,
+          "¡Archivo procesado con éxito! Se han detectado los pacientes"
+          " correctamente."
       )
 
-  with tab2:
-    st.subheader("Mensajes cortos para SMS")
-    for _, row in df_filtrado.iterrows():
-      mensaje_sms = (
-          f"Clinica: Le recordamos su cita manana a las {row['Hora']} con"
-          f" {row['Fisio / Dentista']}. Responda OK para confirmar."
-      )
-      st.markdown(
-          f"""
-            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 12px; border: 1px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-                <p style="color: #000000; margin: 0 0 8px 0; font-size: 16px;"><b>Paciente:</b> {row['Paciente']} &nbsp;|&nbsp; <b>Tlf:</b> {row['Telefono']}</p>
-                <hr style="margin: 6px 0; border-top: 1px solid #dcdcdc;">
-                <p style="color: #000000; margin: 8px 0 0 0; font-size: 15px;">✉️ {mensaje_sms}</p>
-            </div>
-            """,
-          unsafe_allow_html=True,
-      )
+      # Mostrar vista previa de la tabla limpia
+      st.dataframe(df)
+
+      # Generador de mensajes de WhatsApp
+      st.subheader("💬 Mensajes de WhatsApp listos para enviar")
+      for index, row in df.iterrows():
+        paciente = str(row.get("Paciente", "Paciente"))
+        hora = str(row.get("Hora", "su hora habitual"))
+        telefono = str(row.get("Teléfono", ""))
+
+        mensaje = (
+            f"Hola {paciente}, le escribimos de la clínica para recordarle su"
+            f" cita programada para mañana a las {hora}. Por favor, responda"
+            " OK para confirmar."
+        )
+
+        st.text_area(
+            f"Mensaje para: {paciente} ({telefono})", value=mensaje, height=70
+        )
+
+  except Exception as e:
+    st.error(f"❌ Error al leer el archivo Excel: {e}")
