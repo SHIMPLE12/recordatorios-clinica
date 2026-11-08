@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 import urllib.parse
 import pandas as pd
 import streamlit as st
@@ -8,8 +9,8 @@ st.set_page_config(
 
 st.title("🦷 Recordatorios Automáticos para Clínicas")
 st.write(
-    "Sube el archivo Excel de la clínica para generar los mensajes de WhatsApp y"
-    " SMS."
+    "Sube el archivo Excel. La app filtrará automáticamente solo las citas de"
+    " mañana."
 )
 
 uploaded_file = st.file_uploader(
@@ -68,19 +69,47 @@ if uploaded_file is not None:
       df = df.rename(columns=renombrar_dict)
       df = df.dropna(subset=["Paciente"])
 
-      st.success(
-          "¡Archivo procesado con éxito! Citas detectadas correctamente."
-      )
+      # 3. Filtrar por la fecha de mañana (si existe la columna Fecha)
+      if "Fecha" in df.columns:
+        # Calcular fecha de mañana (hoy es 2026-11-08, mañana es 2026-11-09)
+        mañana = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
-      # Generador de mensajes con botones de WhatsApp y SMS
+        # Convertir la columna de fecha a string para comparar con seguridad
+        df["Fecha_str"] = (
+            pd.to_datetime(df["Fecha"], errors="coerce")
+            .dt.strftime("%Y-%m-%d")
+            .fillna(df["Fecha"].astype(str))
+        )
+
+        # Filtrar solo las de mañana
+        df_mañana = df[df["Fecha_str"] == mañana]
+
+        if df_mañana.empty:
+          st.warning(
+              f"⚠️ No hay citas programadas para mañana ({mañana}). Mostrando"
+              " todas las citas del archivo:"
+          )
+          df_filtrado = df
+        else:
+          df_filtrado = df_mañana
+          st.success(
+              f"✅ ¡Se han filtrado correctamente las citas para mañana"
+              f" ({mañana})!"
+          )
+      else:
+        df_filtrado = df
+        st.info(
+            "ℹ️ No se encontró columna de fecha, mostrando todas las citas."
+        )
+
+      # Generador de mensajes
       st.subheader("💬 Mensajes listos para enviar")
 
-      for index, row in df.iterrows():
+      for index, row in df_filtrado.iterrows():
         paciente = str(row.get("Paciente", "Paciente"))
         hora = str(row.get("Hora", "su hora habitual"))
         telefono_raw = str(row.get("Teléfono", ""))
 
-        # Limpiar teléfono para los enlaces (solo números)
         telefono_limpio = "".join(filter(str.isdigit, telefono_raw))
 
         mensaje = (
@@ -89,7 +118,6 @@ if uploaded_file is not None:
             " OK para confirmar."
         )
 
-        # Mostrar cuadro de texto con el mensaje
         st.text_area(
             f"Paciente: {paciente} ({telefono_raw})",
             value=mensaje,
@@ -102,7 +130,6 @@ if uploaded_file is not None:
           whatsapp_url = f"https://wa.me/{telefono_limpio}?text={mensaje_encoded}"
           sms_url = f"sms:{telefono_limpio}?body={mensaje_encoded}"
 
-          # Contenedor para poner los botones uno al lado del otro o apilados limpios
           st.markdown(
               f"""
                         <div style="margin-bottom: 20px;">
