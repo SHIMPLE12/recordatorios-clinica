@@ -1,3 +1,4 @@
+import urllib.parse
 import pandas as pd
 import streamlit as st
 
@@ -6,10 +7,7 @@ st.set_page_config(
 )
 
 st.title("🦷 Recordatorios Automáticos para Clínicas")
-st.write(
-    "Sube el archivo Excel de la clínica. La app detectará automáticamente los"
-    " datos sin importar el orden o los nombres de las columnas."
-)
+st.write("Sube el archivo Excel de la clínica para generar los mensajes.")
 
 uploaded_file = st.file_uploader(
     "Selecciona el archivo Excel (.xlsx)", type=["xlsx", "xls"]
@@ -20,10 +18,9 @@ if uploaded_file is not None:
     # 1. Leer el archivo Excel
     df = pd.read_excel(uploaded_file)
 
-    # 2. Normalizar nombres de columnas (quitar espacios y pasar a minúsculas)
+    # 2. Normalizar nombres de columnas
     df.columns = df.columns.astype(str).str.strip()
 
-    # 3. Diccionario de sinónimos para encontrar columnas clave
     column_mapping = {
         "paciente": [
             "paciente",
@@ -50,14 +47,12 @@ if uploaded_file is not None:
     col_fecha = encontrar_columna(df.columns, column_mapping["fecha"])
     col_hora = encontrar_columna(df.columns, column_mapping["hora"])
 
-    # 4. Validar columnas obligatorias
     if not col_paciente or not col_telefono:
       st.error(
-          "⚠️ No se han podido detectar automáticamente las columnas de"
-          f" 'Paciente' y 'Teléfono'. Columnas encontradas: {list(df.columns)}"
+          "⚠️ No se han podido detectar las columnas de 'Paciente' y"
+          f" 'Teléfono'. Columnas: {list(df.columns)}"
       )
     else:
-      # Renombrar para estandarizar
       renombrar_dict = {
           col_paciente: "Paciente",
           col_telefono: "Teléfono",
@@ -68,24 +63,22 @@ if uploaded_file is not None:
         renombrar_dict[col_hora] = "Hora"
 
       df = df.rename(columns=renombrar_dict)
-
-      # Limpiar filas vacías de pacientes
       df = df.dropna(subset=["Paciente"])
 
       st.success(
-          "¡Archivo procesado con éxito! Se han detectado los pacientes"
-          " correctamente."
+          "¡Archivo procesado con éxito! Citas detectadas correctamente."
       )
 
-      # Mostrar vista previa de la tabla limpia
-      st.dataframe(df)
+      # Generador de mensajes de WhatsApp con botón de envío directo
+      st.subheader("💬 Mensajes listos para enviar")
 
-      # Generador de mensajes de WhatsApp
-      st.subheader("💬 Mensajes de WhatsApp listos para enviar")
       for index, row in df.iterrows():
         paciente = str(row.get("Paciente", "Paciente"))
         hora = str(row.get("Hora", "su hora habitual"))
-        telefono = str(row.get("Teléfono", ""))
+        telefono_raw = str(row.get("Teléfono", ""))
+
+        # Limpiar teléfono para el enlace de WhatsApp (solo números)
+        telefono_limpio = "".join(filter(str.isdigit, telefono_raw))
 
         mensaje = (
             f"Hola {paciente}, le escribimos de la clínica para recordarle su"
@@ -93,9 +86,30 @@ if uploaded_file is not None:
             " OK para confirmar."
         )
 
+        # Mostrar cuadro de texto con el mensaje
         st.text_area(
-            f"Mensaje para: {paciente} ({telefono})", value=mensaje, height=70
+            f"Paciente: {paciente} ({telefono_raw})",
+            value=mensaje,
+            height=70,
+            key=f"msg_{index}",
         )
 
+        # Enlace directo para abrir WhatsApp con un clic
+        if telefono_limpio:
+          mensaje_encoded = urllib.parse.quote(mensaje)
+          whatsapp_url = f"https://wa.me/{telefono_limpio}?text={mensaje_encoded}"
+          st.markdown(
+              f'<a href="{whatsapp_url}" target="_blank" style="display:block;'
+              "background-color:#25D366; color:white; padding:10px 15px;"
+              "border-radius:8px; text-decoration:none; font-weight:bold;"
+              'text-align:center; margin-bottom: 20px;">📲 Enviar a WhatsApp de'
+              f" {paciente}</a>",
+              unsafe_allow_html=True,
+          )
+        else:
+          st.warning(
+              f"⚠️ El paciente {paciente} no tiene un teléfono válido."
+          )
+
   except Exception as e:
-    st.error(f"❌ Error al leer el archivo Excel: {e}")
+    st.error(f"❌ Error al procesar el archivo: {e}")
