@@ -69,84 +69,86 @@ if uploaded_file is not None:
       df = df.rename(columns=renombrar_dict)
       df = df.dropna(subset=["Paciente"])
 
-      # 3. Filtrar por la fecha de mañana (si existe la columna Fecha)
+      # 3. Filtrar estrictamente por la fecha de mañana
       if "Fecha" in df.columns:
-        # Calcular fecha de mañana (hoy es 2026-11-08, mañana es 2026-11-09)
         mañana = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
-        # Convertir la columna de fecha a string para comparar con seguridad
         df["Fecha_str"] = (
             pd.to_datetime(df["Fecha"], errors="coerce")
             .dt.strftime("%Y-%m-%d")
             .fillna(df["Fecha"].astype(str))
         )
 
-        # Filtrar solo las de mañana
         df_mañana = df[df["Fecha_str"] == mañana]
 
         if df_mañana.empty:
           st.warning(
-              f"⚠️ No hay citas programadas para mañana ({mañana}). Mostrando"
-              " todas las citas del archivo:"
+              f"⚠️ No hay ninguna cita programada para mañana ({mañana}). El"
+              " archivo no contiene citas para esa fecha."
           )
-          df_filtrado = df
+          df_filtrado = pd.
+          # Dejamos el dataframe vacío para que no pinte nada
+          df_filtrado = df.iloc[0:0]
         else:
           df_filtrado = df_mañana
           st.success(
-              f"✅ ¡Se han filtrado correctamente las citas para mañana"
+              f"✅ ¡Se han encontrado y filtrado las citas para mañana"
               f" ({mañana})!"
           )
       else:
-        df_filtrado = df
-        st.info(
-            "ℹ️ No se encontró columna de fecha, mostrando todas las citas."
+        st.warning(
+            "⚠️ No se ha encontrado ninguna columna de fecha en el archivo."
         )
+        df_filtrado = df.iloc[0:0]
 
-      # Generador de mensajes
-      st.subheader("💬 Mensajes listos para enviar")
+      # 4. Generador de mensajes (solo si hay citas para mañana)
+      if not df_filtrado.empty:
+        st.subheader("💬 Mensajes listos para enviar")
 
-      for index, row in df_filtrado.iterrows():
-        paciente = str(row.get("Paciente", "Paciente"))
-        hora = str(row.get("Hora", "su hora habitual"))
-        telefono_raw = str(row.get("Teléfono", ""))
+        for index, row in df_filtrado.iterrows():
+          paciente = str(row.get("Paciente", "Paciente"))
+          hora = str(row.get("Hora", "su hora habitual"))
+          telefono_raw = str(row.get("Teléfono", ""))
 
-        telefono_limpio = "".join(filter(str.isdigit, telefono_raw))
+          telefono_limpio = "".join(filter(str.isdigit, telefono_raw))
 
-        mensaje = (
-            f"Hola {paciente}, le escribimos de la clínica para recordarle su"
-            f" cita programada para mañana a las {hora}. Por favor, responda"
-            " OK para confirmar."
-        )
-
-        st.text_area(
-            f"Paciente: {paciente} ({telefono_raw})",
-            value=mensaje,
-            height=70,
-            key=f"msg_{index}",
-        )
-
-        if telefono_limpio:
-          mensaje_encoded = urllib.parse.quote(mensaje)
-          whatsapp_url = f"https://wa.me/{telefono_limpio}?text={mensaje_encoded}"
-          sms_url = f"sms:{telefono_limpio}?body={mensaje_encoded}"
-
-          st.markdown(
-              f"""
-                        <div style="margin-bottom: 20px;">
-                            <a href="{whatsapp_url}" target="_blank" style="display:block; background-color:#25D366; color:white; padding:10px 15px; border-radius:8px; text-decoration:none; font-weight:bold; text-align:center; margin-bottom: 8px;">
-                                📲 Enviar a WhatsApp de {paciente}
-                            </a>
-                            <a href="{sms_url}" style="display:block; background-color:#007AFF; color:white; padding:10px 15px; border-radius:8px; text-decoration:none; font-weight:bold; text-align:center;">
-                                ✉️ Enviar por SMS a {paciente}
-                            </a>
-                        </div>
-                        """,
-              unsafe_allow_html=True,
+          mensaje = (
+              f"Hola {paciente}, le escribimos de la clínica para recordarle"
+              f" su cita programada para mañana a las {hora}. Por favor,"
+              " responda OK para confirmar."
           )
-        else:
-          st.warning(
-              f"⚠️ El paciente {paciente} no tiene un teléfono válido."
+
+          st.text_area(
+              f"Paciente: {paciente} ({telefono_raw})",
+              value=mensaje,
+              height=70,
+              key=f"msg_{index}",
           )
+
+          if telefono_limpio:
+            mensaje_encoded = urllib.parse.quote(mensaje)
+            whatsapp_url = (
+                f"https://wa.me/{telefono_limpio}?text={mensaje_encoded}"
+            )
+            sms_url = f"sms:{telefono_limpio}?body={mensaje_encoded}"
+
+            st.markdown(
+                f"""
+                            <div style="margin-bottom: 20px;">
+                                <a href="{whatsapp_url}" target="_blank" style="display:block; background-color:#25D366; color:white; padding:10px 15px; border-radius:8px; text-decoration:none; font-weight:bold; text-align:center; margin-bottom: 8px;">
+                                    📲 Enviar a WhatsApp de {paciente}
+                                </a>
+                                <a href="{sms_url}" style="display:block; background-color:#007AFF; color:white; padding:10px 15px; border-radius:8px; text-decoration:none; font-weight:bold; text-align:center;">
+                                    ✉️ Enviar por SMS a {paciente}
+                                </a>
+                            </div>
+                            """,
+                unsafe_allow_html=True,
+            )
+          else:
+            st.warning(
+                f"⚠️ El paciente {paciente} no tiene un teléfono válido."
+            )
 
   except Exception as e:
     st.error(f"❌ Error al procesar el archivo: {e}")
