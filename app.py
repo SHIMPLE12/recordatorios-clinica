@@ -7,7 +7,10 @@ st.set_page_config(
 )
 
 st.title("🦷 Recordatorios Automáticos para Clínicas")
-st.write("Sube el archivo Excel de la clínica para generar los mensajes.")
+st.write(
+    "Sube el archivo Excel de la clínica para generar los mensajes de WhatsApp y"
+    " SMS."
+)
 
 uploaded_file = st.file_uploader(
     "Selecciona el archivo Excel (.xlsx)", type=["xlsx", "xls"]
@@ -69,7 +72,7 @@ if uploaded_file is not None:
           "¡Archivo procesado con éxito! Citas detectadas correctamente."
       )
 
-      # Generador de mensajes de WhatsApp con botón de envío directo
+      # Generador de mensajes con botones de WhatsApp y SMS
       st.subheader("💬 Mensajes listos para enviar")
 
       for index, row in df.iterrows():
@@ -77,7 +80,7 @@ if uploaded_file is not None:
         hora = str(row.get("Hora", "su hora habitual"))
         telefono_raw = str(row.get("Teléfono", ""))
 
-        # Limpiar teléfono para el enlace de WhatsApp (solo números)
+        # Limpiar teléfono para los enlaces (solo números)
         telefono_limpio = "".join(filter(str.isdigit, telefono_raw))
 
         mensaje = (
@@ -94,16 +97,23 @@ if uploaded_file is not None:
             key=f"msg_{index}",
         )
 
-        # Enlace directo para abrir WhatsApp con un clic
         if telefono_limpio:
           mensaje_encoded = urllib.parse.quote(mensaje)
           whatsapp_url = f"https://wa.me/{telefono_limpio}?text={mensaje_encoded}"
+          sms_url = f"sms:{telefono_limpio}?body={mensaje_encoded}"
+
+          # Contenedor para poner los botones uno al lado del otro o apilados limpios
           st.markdown(
-              f'<a href="{whatsapp_url}" target="_blank" style="display:block;'
-              "background-color:#25D366; color:white; padding:10px 15px;"
-              "border-radius:8px; text-decoration:none; font-weight:bold;"
-              'text-align:center; margin-bottom: 20px;">📲 Enviar a WhatsApp de'
-              f" {paciente}</a>",
+              f"""
+                        <div style="margin-bottom: 20px;">
+                            <a href="{whatsapp_url}" target="_blank" style="display:block; background-color:#25D366; color:white; padding:10px 15px; border-radius:8px; text-decoration:none; font-weight:bold; text-align:center; margin-bottom: 8px;">
+                                📲 Enviar a WhatsApp de {paciente}
+                            </a>
+                            <a href="{sms_url}" style="display:block; background-color:#007AFF; color:white; padding:10px 15px; border-radius:8px; text-decoration:none; font-weight:bold; text-align:center;">
+                                ✉️ Enviar por SMS a {paciente}
+                            </a>
+                        </div>
+                        """,
               unsafe_allow_html=True,
           )
         else:
