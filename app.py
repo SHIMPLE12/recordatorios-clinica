@@ -81,4 +81,72 @@ if uploaded_file is not None:
 
         df_mañana = df[df["Fecha_str"] == mañana]
 
-        if df_
+        if df_mañana.empty:
+          st.warning(
+              f"⚠️ No hay ninguna cita programada para mañana ({mañana}). El"
+              " archivo no contiene citas para esa fecha."
+          )
+          df_filtrado = df.iloc[0:0]  # Vacío para que no muestre mensajes
+        else:
+          df_filtrado = df_mañana
+          st.success(
+              f"✅ ¡Se han encontrado y filtrado las citas para mañana"
+              f" ({mañana})!"
+          )
+      else:
+        st.warning(
+            "⚠️ No se ha encontrado ninguna columna de fecha en el archivo."
+        )
+        df_filtrado = df.iloc[0:0]
+
+      # 4. Generador de mensajes (solo si hay citas para mañana)
+      if not df_filtrado.empty:
+        st.subheader("💬 Mensajes listos para enviar")
+
+        for index, row in df_filtrado.iterrows():
+          paciente = str(row.get("Paciente", "Paciente"))
+          hora = str(row.get("Hora", "su hora habitual"))
+          telefono_raw = str(row.get("Teléfono", ""))
+
+          telefono_limpio = "".join(filter(str.isdigit, telefono_raw))
+
+          mensaje = (
+              f"Hola {paciente}, le escribimos de la clínica para recordarle"
+              f" su cita programada para mañana a las {hora}. Por favor,"
+              " responda OK para confirmar."
+          )
+
+          st.text_area(
+              f"Paciente: {paciente} ({telefono_raw})",
+              value=mensaje,
+              height=70,
+              key=f"msg_{index}",
+          )
+
+          if telefono_limpio:
+            mensaje_encoded = urllib.parse.quote(mensaje)
+            whatsapp_url = (
+                f"https://wa.me/{telefono_limpio}?text={mensaje_encoded}"
+            )
+            sms_url = f"sms:{telefono_limpio}?body={mensaje_encoded}"
+
+            st.markdown(
+                f"""
+                            <div style="margin-bottom: 20px;">
+                                <a href="{whatsapp_url}" target="_blank" style="display:block; background-color:#25D366; color:white; padding:10px 15px; border-radius:8px; text-decoration:none; font-weight:bold; text-align:center; margin-bottom: 8px;">
+                                    📲 Enviar a WhatsApp de {paciente}
+                                </a>
+                                <a href="{sms_url}" style="display:block; background-color:#007AFF; color:white; padding:10px 15px; border-radius:8px; text-decoration:none; font-weight:bold; text-align:center;">
+                                    ✉️ Enviar por SMS a {paciente}
+                                </a>
+                            </div>
+                            """,
+                unsafe_allow_html=True,
+            )
+          else:
+            st.warning(
+                f"⚠️ El paciente {paciente} no tiene un teléfono válido."
+            )
+
+  except Exception as e:
+    st.error(f"❌ Error al procesar el archivo: {e}")
