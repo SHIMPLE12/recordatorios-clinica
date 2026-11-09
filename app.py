@@ -37,7 +37,7 @@ if uploaded_file is not None:
     # 1. Leer el archivo Excel
     df = pd.read_excel(uploaded_file)
 
-    # 2. Normalizar nombres de columnas (quitar espacios a los lados y pasar a minúsculas)
+    # 2. Normalizar nombres de columnas (quitar espacios a los lados)
     df.columns = df.columns.astype(str).str.strip()
 
 
@@ -51,7 +51,6 @@ if uploaded_file is not None:
       return None
 
 
-    # Definimos qué buscar
     col_paciente = encontrar_columna_inteligente(
         df.columns, ["paciente", "nombre", "cliente"]
     )
@@ -81,15 +80,23 @@ if uploaded_file is not None:
       df = df.rename(columns=renombrar_dict)
       df = df.dropna(subset=["Paciente"])
 
-      # 3. Filtrar estrictamente por la fecha de mañana (con dayfirst=True para formato europeo)
+      # 3. Filtrar estrictamente por la fecha de mañana (detección inteligente automática de formato)
       if "Fecha" in df.columns:
         mañana = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
-        df["Fecha_str"] = (
-            pd.to_datetime(df["Fecha"], dayfirst=True, errors="coerce")
-            .dt.strftime("%Y-%m-%d")
-            .fillna(df["Fecha"].astype(str))
-        )
+        df["Fecha_str"] = pd.to_datetime(
+            df["Fecha"], errors="coerce"
+        ).dt.strftime("%Y-%m-%d")
+
+        mask_nans = df["Fecha_str"].isna()
+        if mask_nans.any():
+          df.loc[mask_nans, "Fecha_str"] = (
+              pd.to_datetime(
+                  df.loc[mask_nans, "Fecha"], dayfirst=True, errors="coerce"
+              )
+              .dt.strftime("%Y-%m-%d")
+              .fillna(df.loc[mask_nans, "Fecha"].astype(str))
+          )
 
         df_mañana = df[df["Fecha_str"] == mañana]
 
@@ -122,7 +129,6 @@ if uploaded_file is not None:
 
           telefono_limpio = "".join(filter(str.isdigit, telefono_raw))
 
-          # Mensaje personalizado incluyendo el nombre de la clínica dinámico
           mensaje = (
               f"Hola {paciente}, le escribimos de *{nombre_clinica}* para"
               f" recordarle su cita programada para mañana a las {hora}. Por"
