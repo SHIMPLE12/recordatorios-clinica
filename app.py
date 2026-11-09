@@ -49,7 +49,14 @@ if uploaded_file is not None:
             "nombre y apellidos",
         ],
         "telefono": ["telefono", "móvil", "movil", "tlf", "celular", "teléfono"],
-        "fecha": ["fecha", "dia", "día", "fecha cita"],
+        "fecha": [
+            "fecha",
+            "dia",
+            "día",
+            "fecha cita",
+            "fecha y hora",
+            "horario",
+        ],
         "hora": ["hora", "horario", "hora cita"],
     }
 
