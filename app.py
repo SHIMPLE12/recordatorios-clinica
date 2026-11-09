@@ -37,7 +37,7 @@ if uploaded_file is not None:
     # 1. Leer el archivo Excel
     df = pd.read_excel(uploaded_file)
 
-    # 2. Normalizar nombres de columnas
+    # 2. Normalizar nombres de columnas (quitar espacios a los lados)
     df.columns = df.columns.astype(str).str.strip()
 
     column_mapping = {
@@ -54,22 +54,29 @@ if uploaded_file is not None:
     }
 
 
-    def encontrar_columna(df_cols, posibles_nombres):
+    # BÚSQUEDA FLEXIBLE: Comprueba si la palabra clave está dentro del texto de la columna
+    def encontrar_columna_flexible(df_cols, posibles_nombres):
       for col in df_cols:
-        if col.lower() in posibles_nombres:
-          return col
+        col_lower = str(col).lower()
+        for palabra in posibles_nombres:
+          if palabra in col_lower:
+            return col
       return None
 
 
-    col_paciente = encontrar_columna(df.columns, column_mapping["paciente"])
-    col_telefono = encontrar_columna(df.columns, column_mapping["telefono"])
-    col_fecha = encontrar_columna(df.columns, column_mapping["fecha"])
-    col_hora = encontrar_columna(df.columns, column_mapping["hora"])
+    col_paciente = encontrar_columna_flexible(
+        df.columns, column_mapping["paciente"]
+    )
+    col_telefono = encontrar_columna_flexible(
+        df.columns, column_mapping["telefono"]
+    )
+    col_fecha = encontrar_columna_flexible(df.columns, column_mapping["fecha"])
+    col_hora = encontrar_columna_flexible(df.columns, column_mapping["hora"])
 
     if not col_paciente or not col_telefono:
       st.error(
           "⚠️ No se han podido detectar las columnas de 'Paciente' y"
-          f" 'Teléfono'. Columnas: {list(df.columns)}"
+          f" 'Teléfono'. Columnas encontradas: {list(df.columns)}"
       )
     else:
       renombrar_dict = {
@@ -84,12 +91,12 @@ if uploaded_file is not None:
       df = df.rename(columns=renombrar_dict)
       df = df.dropna(subset=["Paciente"])
 
-      # 3. Filtrar estrictamente por la fecha de mañana
+      # 3. Filtrar estrictamente por la fecha de mañana (con dayfirst=True para formato europeo)
       if "Fecha" in df.columns:
         mañana = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
         df["Fecha_str"] = (
-            pd.to_datetime(df["Fecha"], errors="coerce")
+            pd.to_datetime(df["Fecha"], dayfirst=True, errors="coerce")
             .dt.strftime("%Y-%m-%d")
             .fillna(df["Fecha"].astype(str))
         )
@@ -101,7 +108,7 @@ if uploaded_file is not None:
               f"⚠️ No hay ninguna cita programada para mañana ({mañana}). El"
               " archivo no contiene citas para esa fecha."
           )
-          df_filtrado = df.iloc[0:0]  # Vacío para que no muestre mensajes
+          df_filtrado = df.iloc[0:0]
         else:
           df_filtrado = df_mañana
           st.success(
