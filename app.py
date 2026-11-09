@@ -37,48 +37,31 @@ if uploaded_file is not None:
     # 1. Leer el archivo Excel
     df = pd.read_excel(uploaded_file)
 
-    # 2. Normalizar nombres de columnas (quitar espacios a los lados)
+    # 2. Normalizar nombres de columnas (quitar espacios a los lados y pasar a minúsculas)
     df.columns = df.columns.astype(str).str.strip()
 
-    column_mapping = {
-        "paciente": [
-            "paciente",
-            "nombre",
-            "cliente",
-            "nombre paciente",
-            "nombre y apellidos",
-        ],
-        "telefono": ["telefono", "móvil", "movil", "tlf", "celular", "teléfono"],
-        "fecha": [
-            "fecha",
-            "dia",
-            "día",
-            "fecha cita",
-            "fecha y hora",
-            "horario",
-        ],
-        "hora": ["hora", "horario", "hora cita"],
-    }
 
-
-    # BÚSQUEDA FLEXIBLE: Comprueba si la palabra clave está dentro del texto de la columna
-    def encontrar_columna_flexible(df_cols, posibles_nombres):
+    # BÚSQUEDA SÚPER FLEXIBLE Y DIRECTA
+    def encontrar_columna_inteligente(df_cols, palabras_clave):
       for col in df_cols:
         col_lower = str(col).lower()
-        for palabra in posibles_nombres:
+        for palabra in palabras_clave:
           if palabra in col_lower:
             return col
       return None
 
 
-    col_paciente = encontrar_columna_flexible(
-        df.columns, column_mapping["paciente"]
+    # Definimos qué buscar
+    col_paciente = encontrar_columna_inteligente(
+        df.columns, ["paciente", "nombre", "cliente"]
     )
-    col_telefono = encontrar_columna_flexible(
-        df.columns, column_mapping["telefono"]
+    col_telefono = encontrar_columna_inteligente(
+        df.columns, ["tel", "móvil", "movil", "tlf", "celular"]
     )
-    col_fecha = encontrar_columna_flexible(df.columns, column_mapping["fecha"])
-    col_hora = encontrar_columna_flexible(df.columns, column_mapping["hora"])
+    col_fecha = encontrar_columna_inteligente(
+        df.columns, ["fecha", "dia", "día", "cita"]
+    )
+    col_hora = encontrar_columna_inteligente(df.columns, ["hora", "horario"])
 
     if not col_paciente or not col_telefono:
       st.error(
