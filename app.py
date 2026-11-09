@@ -1,152 +1,141 @@
-from datetime import datetime, timedelta
-import urllib.parse
 import pandas as pd
+import urllib.parse
 import streamlit as st
 
+# Configuración de la página
 st.set_page_config(
-    page_title="Recordatorios Clínicas", page_icon="🦷", layout="centered"
+    page_title="Recordatorio de Citas - WhatsApp", page_icon="📅", layout="centered"
 )
 
-st.title("🦷 Recordatorios Automáticos para Clínicas")
-st.write(
-    "Sube el archivo Excel. La app filtrará automáticamente solo las citas de"
-    " mañana."
+# Estilo visual limpio y directo
+st.title("📅 Recordatorios de Citas por WhatsApp")
+st.markdown(
+    "Sube el Excel con las citas del día para generar los enlaces de WhatsApp de forma automática."
 )
 
+# --- BARRA LATERAL: Configuración de la Clínica ---
+st.sidebar.header("⚙️ Configuración")
+nombre_clinica = st.sidebar.text_input(
+    "Nombre de la Clínica",
+    value="Clínica Médica",
+    placeholder="Ej: Clínica Dental Sonrisa",
+)
+
+st.sidebar.markdown("---")
+st.sidebar.info(
+    "💡 **Consejo:** Asegúrate de que tu Excel tenga columnas para el **Nombre** del paciente, su **Teléfono** y la **Hora** de la cita."
+)
+
+# --- CONTENIDO PRINCIPAL ---
 uploaded_file = st.file_uploader(
-    "Selecciona el archivo Excel (.xlsx)", type=["xlsx", "xls"]
+    "Sube tu archivo Excel (.xlsx o .xls) o CSV", type=["xlsx", "xls", "csv"]
 )
 
 if uploaded_file is not None:
   try:
-    # 1. Leer el archivo Excel
-    df = pd.read_excel(uploaded_file)
-
-    # 2. Normalizar nombres de columnas
-    df.columns = df.columns.astype(str).str.strip()
-
-    column_mapping = {
-        "paciente": [
-            "paciente",
-            "nombre",
-            "cliente",
-            "nombre paciente",
-            "nombre y apellidos",
-        ],
-        "telefono": ["telefono", "móvil", "movil", "tlf", "celular", "teléfono"],
-        "fecha": ["fecha", "dia", "día", "fecha cita"],
-        "hora": ["hora", "horario", "hora cita"],
-    }
-
-
-    def encontrar_columna(df_cols, posibles_nombres):
-      for col in df_cols:
-        if col.lower() in posibles_nombres:
-          return col
-      return None
-
-
-    col_paciente = encontrar_columna(df.columns, column_mapping["paciente"])
-    col_telefono = encontrar_columna(df.columns, column_mapping["telefono"])
-    col_fecha = encontrar_columna(df.columns, column_mapping["fecha"])
-    col_hora = encontrar_columna(df.columns, column_mapping["hora"])
-
-    if not col_paciente or not col_telefono:
-      st.error(
-          "⚠️ No se han podido detectar las columnas de 'Paciente' y"
-          f" 'Teléfono'. Columnas: {list(df.columns)}"
-      )
+    # Leer el archivo según su formato
+    if uploaded_file.name.endswith(".csv"):
+      df = pd.read_csv(uploaded_file)
     else:
-      renombrar_dict = {
-          col_paciente: "Paciente",
-          col_telefono: "Teléfono",
-      }
-      if col_fecha:
-        renombrar_dict[col_fecha] = "Fecha"
-      if col_hora:
-        renombrar_dict[col_hora] = "Hora"
+      df = pd.read_excel(uploaded_file)
 
-      df = df.rename(columns=renombrar_dict)
-      df = df.dropna(subset=["Paciente"])
+    st.success(
+        f"¡Archivo cargado con éxito! Se han encontrado {len(df)} registros."
+    )
 
-      # 3. Filtrar estrictamente por la fecha de mañana
-      if "Fecha" in df.columns:
-        mañana = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    # Mostrar una vista previa de los datos
+    with st.expander("🔍 Ver vista previa de los datos"):
+      st.dataframe(df.head())
 
-        df["Fecha_str"] = (
-            pd.to_datetime(df["Fecha"], errors="coerce")
-            .dt.strftime("%Y-%m-%d")
-            .fillna(df["Fecha"].astype(str))
+    # Mapeo de columnas para asegurar flexibilidad
+    st.subheader("1. Selecciona las columnas correspondientes")
+    columnas = list(df.columns)
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+      col_nombre = st.selectbox(
+          "Columna de Nombre",
+          columnas,
+          index=0 if len(columnas) > 0 else 0,
+      )
+    with col2:
+      col_telefono = st.selectbox(
+          "Columna de Teléfono",
+          columnas,
+          index=1 if len(columnas) > 1 else 0,
+      )
+    with col3:
+      col_hora = st.selectbox(
+          "Columna de Hora/Fecha",
+          columnas,
+          index=2 if len(columnas) > 2 else 0,
+      )
+
+    # Personalización de la plantilla del mensaje
+    st.subheader("2. Plantilla del mensaje")
+    plantilla_defecto = (
+        f"Hola [Nombre], le recordamos su cita en *{nombre_clinica}* para mañana"
+        " a las [Hora]. Por favor, responda OK para confirmar su asistencia."
+        " ¡Gracias!"
+    )
+    mensaje_personalizado = st.text_area(
+        "Edita el mensaje si lo deseas (usa [Nombre] y [Hora] como"
+        " comodines):",
+        value=plantilla_defecto,
+        height=100,
+    )
+
+    # Botón para generar los enlaces
+    if st.button("🚀 Generar Enlaces de WhatsApp"):
+      st.markdown("---")
+      st.subheader(f"3. Enlaces listos para enviar ({nombre_clinica})")
+
+      for index, row in df.iterrows():
+        paciente = str(row[col_nombre])
+        telefono = str(row[col_telefono]).strip()
+        hora = str(row[col_hora])
+
+        # Limpiar el teléfono (quitar espacios, guiones si los hubiera, asegurando formato básico)
+        # Opcional: limpiar caracteres no numéricos excepto el +
+        telefono_limpio = "".join(filter(lambda x: x.isdigit() or x == "+", telefono))
+
+        # Reemplazar comodines en el mensaje
+        texto_final = (
+            mensaje_personalizado.replace("[Nombre]", paciente)
+            .replace("[Hora]", hora)
+            .replace("[Clinica]", nombre_clinica)
         )
 
-        df_mañana = df[df["Fecha_str"] == mañana]
-
-        if df_mañana.empty:
-          st.warning(
-              f"⚠️ No hay ninguna cita programada para mañana ({mañana}). El"
-              " archivo no contiene citas para esa fecha."
-          )
-          df_filtrado = df.iloc[0:0]  # Vacío para que no muestre mensajes
-        else:
-          df_filtrado = df_mañana
-          st.success(
-              f"✅ ¡Se han encontrado y filtrado las citas para mañana"
-              f" ({mañana})!"
-          )
-      else:
-        st.warning(
-            "⚠️ No se ha encontrado ninguna columna de fecha en el archivo."
+        # Codificar el texto para URL de WhatsApp
+        texto_codificado = urllib.parse.quote(texto_final)
+        link_whatsapp = (
+            f"https://api.whatsapp.com/send?phone={telefono_limpio}&text={texto_codificado}"
         )
-        df_filtrado = df.iloc[0:0]
 
-      # 4. Generador de mensajes (solo si hay citas para mañana)
-      if not df_filtrado.empty:
-        st.subheader("💬 Mensajes listos para enviar")
-
-        for index, row in df_filtrado.iterrows():
-          paciente = str(row.get("Paciente", "Paciente"))
-          hora = str(row.get("Hora", "su hora habitual"))
-          telefono_raw = str(row.get("Teléfono", ""))
-
-          telefono_limpio = "".join(filter(str.isdigit, telefono_raw))
-
-          mensaje = (
-              f"Hola {paciente}, le escribimos de la clínica para recordarle"
-              f" su cita programada para mañana a las {hora}. Por favor,"
-              " responda OK para confirmar."
+        # Mostrar tarjeta limpia por cada paciente
+        col_info, col_btn = st.columns([3, 1])
+        with col_info:
+          st.markdown(
+              f"**{paciente}** — 🕒 {hora} — 📱 `+{telefono_limpio}`"
+          )
+        with col_btn:
+          st.markdown(
+              f"[Enviar WhatsApp]({link_whatsapp})", unsafe_allow_html=True
           )
 
-          st.text_area(
-              f"Paciente: {paciente} ({telefono_raw})",
-              value=mensaje,
-              height=70,
-              key=f"msg_{index}",
-          )
-
-          if telefono_limpio:
-            mensaje_encoded = urllib.parse.quote(mensaje)
-            whatsapp_url = (
-                f"https://wa.me/{telefono_limpio}?text={mensaje_encoded}"
-            )
-            sms_url = f"sms:{telefono_limpio}?body={mensaje_encoded}"
-
-            st.markdown(
-                f"""
-                            <div style="margin-bottom: 20px;">
-                                <a href="{whatsapp_url}" target="_blank" style="display:block; background-color:#25D366; color:white; padding:10px 15px; border-radius:8px; text-decoration:none; font-weight:bold; text-align:center; margin-bottom: 8px;">
-                                    📲 Enviar a WhatsApp de {paciente}
-                                </a>
-                                <a href="{sms_url}" style="display:block; background-color:#007AFF; color:white; padding:10px 15px; border-radius:8px; text-decoration:none; font-weight:bold; text-align:center;">
-                                    ✉️ Enviar por SMS a {paciente}
-                                </a>
-                            </div>
-                            """,
-                unsafe_allow_html=True,
-            )
-          else:
-            st.warning(
-                f"⚠️ El paciente {paciente} no tiene un teléfono válido."
-            )
+      st.success(
+          "¡Todos los enlaces generados correctamente! Haz clic en cada botón"
+          " para abrir WhatsApp Web con el mensaje listo."
+      )
 
   except Exception as e:
-    st.error(f"❌ Error al procesar el archivo: {e}")
+    st.error(
+        f"Hubo un error al leer el archivo. Comprueba que el formato sea"
+        f" correcto. Detalle: {e}"
+    )
+
+else:
+  st.info(
+      "👆 Sube un archivo Excel arriba para comenzar a generar los"
+      " recordatorios personalizados."
+  )
