@@ -10,7 +10,8 @@ st.set_page_config(
 # Estilo visual limpio y directo
 st.title("📅 Recordatorios de Citas por WhatsApp")
 st.markdown(
-    "Sube el Excel con las citas del día para generar los enlaces de WhatsApp de forma automática."
+    "Sube el Excel con las citas del día para generar los enlaces de WhatsApp de"
+    " forma automática."
 )
 
 # --- BARRA LATERAL: Configuración de la Clínica ---
@@ -23,7 +24,8 @@ nombre_clinica = st.sidebar.text_input(
 
 st.sidebar.markdown("---")
 st.sidebar.info(
-    "💡 **Consejo:** Asegúrate de que tu Excel tenga columnas para el **Nombre** del paciente, su **Teléfono** y la **Hora** de la cita."
+    "💡 **Consejo:** El sistema detecta automáticamente las columnas de"
+    " Nombre, Teléfono y Hora si tus cabeceras tienen nombres lógicos."
 )
 
 # --- CONTENIDO PRINCIPAL ---
@@ -47,29 +49,51 @@ if uploaded_file is not None:
     with st.expander("🔍 Ver vista previa de los datos"):
       st.dataframe(df.head())
 
-    # Mapeo de columnas para asegurar flexibilidad
-    st.subheader("1. Selecciona las columnas correspondientes")
+    # --- DETECCIÓN INTELIGENTE DE COLUMNAS ---
     columnas = list(df.columns)
 
+
+    def buscar_columna_sugerida(opciones, palabras_clave):
+      for col in opciones:
+        col_lower = str(col).lower()
+        for palabra in palabras_clave:
+          if palabra in col_lower:
+            return col
+      return opciones[0] if len(opciones) > 0 else None
+
+
+    sugerencia_nombre = buscar_columna_sugerida(
+        columnas, ["nombre", "paciente", "cliente", "name"]
+    )
+    sugerencia_tel = buscar_columna_sugerida(
+        columnas, ["telefono", "tel", "movil", "celular", "phone"]
+    )
+    sugerencia_hora = buscar_columna_sugerida(
+        columnas, ["hora", "fecha", "cita", "time", "date"]
+    )
+
+    idx_nombre = (
+        columnas.index(sugerencia_nombre) if sugerencia_nombre in columnas else 0
+    )
+    idx_tel = (
+        columnas.index(sugerencia_tel) if sugerencia_tel in columnas else 0
+    )
+    idx_hora = (
+        columnas.index(sugerencia_hora) if sugerencia_hora in columnas else 0
+    )
+
+    st.subheader("1. Columnas detectadas")
     col1, col2, col3 = st.columns(3)
     with col1:
       col_nombre = st.selectbox(
-          "Columna de Nombre",
-          columnas,
-          index=0 if len(columnas) > 0 else 0,
+          "Columna de Nombre", columnas, index=idx_nombre
       )
     with col2:
       col_telefono = st.selectbox(
-          "Columna de Teléfono",
-          columnas,
-          index=1 if len(columnas) > 1 else 0,
+          "Columna de Teléfono", columnas, index=idx_tel
       )
     with col3:
-      col_hora = st.selectbox(
-          "Columna de Hora/Fecha",
-          columnas,
-          index=2 if len(columnas) > 2 else 0,
-      )
+      col_hora = st.selectbox("Columna de Hora/Fecha", columnas, index=idx_hora)
 
     # Personalización de la plantilla del mensaje
     st.subheader("2. Plantilla del mensaje")
@@ -95,8 +119,7 @@ if uploaded_file is not None:
         telefono = str(row[col_telefono]).strip()
         hora = str(row[col_hora])
 
-        # Limpiar el teléfono (quitar espacios, guiones si los hubiera, asegurando formato básico)
-        # Opcional: limpiar caracteres no numéricos excepto el +
+        # Limpiar el teléfono dejando solo dígitos y el signo +
         telefono_limpio = "".join(filter(lambda x: x.isdigit() or x == "+", telefono))
 
         # Reemplazar comodines en el mensaje
