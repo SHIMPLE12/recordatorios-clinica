@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 
 st.set_page_config(
-    page_title="Recordatorios Clínicas", page_icon="🦷", layout="centered"
+    page_title="Recordatorios de Citas", page_icon="📅", layout="centered"
 )
 
 # --- BARRA LATERAL: Configuración de la Clínica ---
@@ -22,7 +22,7 @@ st.sidebar.info(
 )
 
 # --- CONTENIDO PRINCIPAL ---
-st.title("🦷 Recordatorios Automáticos para Clínicas")
+st.title("📅 Recordatorios Automáticos de Citas")
 st.write(
     "Sube el archivo Excel. La app filtrará automáticamente solo las citas de"
     " mañana."
@@ -89,7 +89,7 @@ if uploaded_file is not None:
       df = df.rename(columns=renombrar_dict)
       df = df.dropna(subset=["Paciente"])
 
-      # 3. Filtrar estrictamente por la fecha de mañana (detección inteligente automática)
+      # 3. Filtrar estrictamente por la fecha de mañana (se calcula automáticamente cada día)
       if "Fecha" in df.columns:
         mañana = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
