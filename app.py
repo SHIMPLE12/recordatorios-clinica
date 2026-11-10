@@ -17,8 +17,8 @@ nombre_clinica = st.sidebar.text_input(
 
 st.sidebar.markdown("---")
 st.sidebar.info(
-    "💡 Sube tu Excel. La app filtrará automáticamente solo las citas de"
-    " mañana y adaptará el mensaje con el nombre de tu centro."
+    "💡 Sube tu Excel (Castellano/Català). La app filtrará automáticamente solo"
+    " las citas de mañana."
 )
 
 # --- CONTENIDO PRINCIPAL ---
@@ -41,7 +41,7 @@ if uploaded_file is not None:
     df.columns = df.columns.astype(str).str.strip()
 
 
-    # BÚSQUEDA SÚPER FLEXIBLE Y ROBUSTA
+    # BÚSQUEDA INTELIGENTE BILINGÜE (Castellano y Catalán)
     def encontrar_columna_inteligente(df_cols, palabras_clave):
       for col in df_cols:
         col_lower = str(col).lower()
@@ -51,24 +51,30 @@ if uploaded_file is not None:
       return None
 
 
-    # Ampliamos las palabras clave para que detecte cualquier variante de fecha u hora
+    # Palabras clave en castellano y catalán
     col_paciente = encontrar_columna_inteligente(
-        df.columns, ["paciente", "nombre", "cliente"]
+        df.columns,
+        ["paciente", "nombre", "cliente", "nom", "pacient", "client"],
     )
     col_telefono = encontrar_columna_inteligente(
-        df.columns, ["tel", "móvil", "movil", "tlf", "celular"]
+        df.columns,
+        ["tel", "móvil", "movil", "tlf", "celular", "telèfon", "mòbil"],
     )
     col_fecha = encontrar_columna_inteligente(
-        df.columns, ["fech", "dia", "día", "cita", "fec"]
+        df.columns, ["fech", "dia", "día", "cita", "fec", "data"]
     )
     col_hora = encontrar_columna_inteligente(
-        df.columns, ["hora", "horario", "hr"]
+        df.columns, ["hora", "horario", "horari", "hr"]
     )
+
+    # 🛡️ RED DE SEGURIDAD ABSOLUTA: Si por algo no la encuentra por texto, usa la 3ª columna
+    if not col_fecha and len(df.columns) >= 3:
+      col_fecha = df.columns[2]
 
     if not col_paciente or not col_telefono:
       st.error(
-          "⚠️ No se han podido detectar las columnas de 'Paciente' y"
-          f" 'Teléfono'. Columnas encontradas: {list(df.columns)}"
+          "⚠️ No se han podido detectar las columnas de 'Paciente/Nom' y"
+          f" 'Teléfono/Telèfon'. Columnas encontradas: {list(df.columns)}"
       )
     else:
       renombrar_dict = {
