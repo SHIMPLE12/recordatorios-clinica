@@ -41,7 +41,7 @@ if uploaded_file is not None:
     df.columns = df.columns.astype(str).str.strip()
 
 
-    # BÚSQUEDA INTELIGENTE BILINGÜE (Castellano y Catalán)
+    # BÚSQUEDA INTELIGENTE BILINGÜE Y PRECISA
     def encontrar_columna_inteligente(df_cols, palabras_clave):
       for col in df_cols:
         col_lower = str(col).lower()
@@ -51,7 +51,7 @@ if uploaded_file is not None:
       return None
 
 
-    # Palabras clave en castellano y catalán
+    # Palabras clave mejoradas (evitamos falsos positivos en ID_Cita)
     col_paciente = encontrar_columna_inteligente(
         df.columns,
         ["paciente", "nombre", "cliente", "nom", "pacient", "client"],
@@ -61,13 +61,13 @@ if uploaded_file is not None:
         ["tel", "móvil", "movil", "tlf", "celular", "telèfon", "mòbil"],
     )
     col_fecha = encontrar_columna_inteligente(
-        df.columns, ["fech", "dia", "día", "cita", "fec", "data"]
+        df.columns, ["fech", "data", "dia", "día"]
     )
     col_hora = encontrar_columna_inteligente(
         df.columns, ["hora", "horario", "horari", "hr"]
     )
 
-    # 🛡️ RED DE SEGURIDAD ABSOLUTA: Si por algo no la encuentra por texto, usa la 3ª columna
+    # 🛡️ RED DE SEGURIDAD ABSOLUTA: Si no la encuentra por texto, usa la 3ª columna
     if not col_fecha and len(df.columns) >= 3:
       col_fecha = df.columns[2]
 
@@ -89,7 +89,7 @@ if uploaded_file is not None:
       df = df.rename(columns=renombrar_dict)
       df = df.dropna(subset=["Paciente"])
 
-      # 3. Filtrar estrictamente por la fecha de mañana (se calcula automáticamente cada día)
+      # 3. Filtrar estrictamente por la fecha de mañana
       if "Fecha" in df.columns:
         mañana = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
