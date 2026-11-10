@@ -41,7 +41,7 @@ if uploaded_file is not None:
     df.columns = df.columns.astype(str).str.strip()
 
 
-    # BÚSQUEDA SÚPER FLEXIBLE Y DIRECTA
+    # BÚSQUEDA SÚPER FLEXIBLE Y ROBUSTA
     def encontrar_columna_inteligente(df_cols, palabras_clave):
       for col in df_cols:
         col_lower = str(col).lower()
@@ -51,6 +51,7 @@ if uploaded_file is not None:
       return None
 
 
+    # Ampliamos las palabras clave para que detecte cualquier variante de fecha u hora
     col_paciente = encontrar_columna_inteligente(
         df.columns, ["paciente", "nombre", "cliente"]
     )
@@ -58,9 +59,11 @@ if uploaded_file is not None:
         df.columns, ["tel", "móvil", "movil", "tlf", "celular"]
     )
     col_fecha = encontrar_columna_inteligente(
-        df.columns, ["fecha", "dia", "día", "cita"]
+        df.columns, ["fech", "dia", "día", "cita", "fec"]
     )
-    col_hora = encontrar_columna_inteligente(df.columns, ["hora", "horario"])
+    col_hora = encontrar_columna_inteligente(
+        df.columns, ["hora", "horario", "hr"]
+    )
 
     if not col_paciente or not col_telefono:
       st.error(
@@ -80,7 +83,7 @@ if uploaded_file is not None:
       df = df.rename(columns=renombrar_dict)
       df = df.dropna(subset=["Paciente"])
 
-      # 3. Filtrar estrictamente por la fecha de mañana (detección inteligente automática de formato)
+      # 3. Filtrar estrictamente por la fecha de mañana (detección inteligente automática)
       if "Fecha" in df.columns:
         mañana = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
 
