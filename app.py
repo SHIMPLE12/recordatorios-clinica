@@ -7,7 +7,29 @@ st.set_page_config(
     page_title="Recordatorios de Citas", page_icon="📅", layout="centered"
 )
 
-# --- BARRA LATERAL: Configuración de la Clínica ---
+# --- CONTRASEÑA DE ACCESO ---
+CONTRASEÑA_MAESTRA = (
+    "prueba-2026"  # <--- Cambia esto por la contraseña que quieras dar a tus clientes
+)
+
+st.sidebar.header("🔐 Acceso de Seguridad")
+password_ingresada = st.sidebar.text_input(
+    "Introduce la contraseña", type="password", placeholder="••••"
+)
+
+# Comprobamos si la contraseña es correcta
+if password_ingresada != CONTRASEÑA_MAESTRA:
+  st.title("🔒 Acceso Restringido")
+  st.warning(
+      "⚠️ Por favor, introduce la contraseña correcta en la barra lateral para"
+      " acceder a la aplicación de recordatorios."
+  )
+  st.stop(
+      # Detiene la ejecución de la app aquí si no ponen la contraseña
+  )
+
+# --- BARRA LATERAL: Configuración de la Clínica (Solo aparece si la contraseña es correcta) ---
+st.sidebar.markdown("---")
 st.sidebar.header("⚙️ Configuración")
 nombre_clinica = st.sidebar.text_input(
     "Nombre de la Clínica",
@@ -51,7 +73,7 @@ if uploaded_file is not None:
       return None
 
 
-    # Palabras clave mejoradas (evitamos falsos positivos en ID_Cita)
+    # Palabras clave mejoradas
     col_paciente = encontrar_columna_inteligente(
         df.columns,
         ["paciente", "nombre", "cliente", "nom", "pacient", "client"],
