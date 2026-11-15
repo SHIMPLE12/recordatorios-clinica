@@ -14,7 +14,7 @@ st.set_page_config(
 
 # --- CONTRASEÑA DE ACCESO ---
 CONTRASEÑA_MAESTRA = (
-    "prueba-2026"  # <--- Cambia esto por la contraseña que prefieras
+    "prueba-2026"  # <--- Cambia esto por la contraseña que quieras
 )
 
 st.sidebar.header("🔐 Acceso de Seguridad")
@@ -46,7 +46,6 @@ st.sidebar.info(
 )
 
 # --- CONFIGURACIÓN DE LA API DE GEMINI ---
-# Lee la clave de la variable de entorno de Render (GOOGLE_API_KEY)
 api_key_google = os.environ.get("GOOGLE_API_KEY")
 if api_key_google:
   genai.configure(api_key=api_key_google)
@@ -66,7 +65,7 @@ modo_entrada = st.radio(
 df_filtrado = pd.DataFrame()
 
 
-# Función para redimensionar imágenes (para ahorrar recursos y acelerar la IA)
+# Función para comprimir y redimensionar imágenes
 def preparar_imagen_para_ia(
     archivo_subido, ancho_maximo=1000, calidad_jpg=80
 ):
@@ -183,7 +182,7 @@ if modo_entrada == "📁 Subir archivo Excel":
       st.error(f"❌ Error al procesar el archivo Excel: {e}")
 
 # ==========================================
-# OPCIÓN 2: FOTO DE LA LIBRETA (CON GEMINI)
+# OPCIÓN 2: FOTO DE LA LIBRETA (CON GEMINI ACTUALIZADO)
 # ==========================================
 elif modo_entrada == "📸 Hacer foto a la libreta de papel":
   st.info(
@@ -195,7 +194,7 @@ elif modo_entrada == "📸 Hacer foto a la libreta de papel":
   )
 
   if foto_subida is not None:
-    st.image(foto_subida, caption="Foto de la libreta", use_column_width=True)
+    st.image(foto_subida, caption="Foto de la libreta", width="stretch")
 
     if st.button("✨ Procesar libreta con Gemini"):
       with st.spinner("Analizando la libreta con Google Gemini..."):
@@ -203,8 +202,8 @@ elif modo_entrada == "📸 Hacer foto a la libreta de papel":
           # 1. Preparamos la imagen con PIL
           imagen_optimizada = preparar_imagen_para_ia(foto_subida)
 
-          # 2. Llamada al modelo Gemini con visión (gemini-1.5-flash)
-          model = genai.GenerativeModel("gemini-1.5-flash")
+          # 2. Usamos el modelo actual compatible con la API de Google (gemini-2.5-flash)
+          model = genai.GenerativeModel("gemini-2.5-flash")
 
           prompt = (
               "Analiza esta imagen de una agenda o libreta médica manuscrita."
@@ -219,7 +218,6 @@ elif modo_entrada == "📸 Hacer foto a la libreta de papel":
 
           response = model.generate_content([prompt, imagen_optimizada])
 
-          # Limpiamos la respuesta por si incluye bloques de código markdown tipo ```json
           texto_respuesta = response.text.strip()
           if texto_respuesta.startswith("```json"):
             texto_respuesta = texto_respuesta[7:]
@@ -243,7 +241,6 @@ elif modo_entrada == "📸 Hacer foto a la libreta de papel":
         except Exception as e:
           st.error(f"Error al procesar la imagen con Gemini: {e}")
 
-    # Mostrar la tabla editable si ya se procesó
     if "df_ia_procesado" in st.session_state:
       st.write("📋 **Revisa y edita los datos si es necesario:**")
       df_filtrado = st.data_editor(
@@ -278,7 +275,6 @@ if not df_filtrado.empty:
         key=f"msg_{index}",
     )
 
-    
     if telefono_limpio:
       mensaje_encoded = urllib.parse.quote(mensaje)
       whatsapp_url = f"https://wa.me/{telefono_limpio}?text={mensaje_encoded}"
