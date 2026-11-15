@@ -195,49 +195,59 @@ elif modo_entrada == "📸 Hacer foto a la libreta de papel":
     st.image(foto_subida, caption="Foto de la libreta", width="stretch")
 
     if st.button("✨ Procesar libreta con Gemini"):
-      with st.spinner("Analizando la libreta con Google Gemini..."):
-        try:
-          # 1. Preparamos la imagen con PIL
-          imagen_optimizada = preparar_imagen_para_ia(foto_subida)
+      if not os.environ.get("GOOGLE_API_KEY"):
+        st.error(
+            "❌ Falta configurar la variable GOOGLE_API_KEY en las variables de"
+            " entorno de Render."
+        )
+      else:
+        with st.spinner(
+            "Analizando la libreta con Google Gemini (3.8 Flash)..."
+        ):
+          try:
+            imagen_optimizada = preparar_imagen_para_ia(foto_subida)
+            model = genai.GenerativeModel("gemini-3.8-flash")
 
-          # 2. Usamos el modelo correcto pedido por Google
-          model = genai.GenerativeModel("gemini-3.8-flash")
+            prompt = (
+                "Analiza esta imagen de una agenda o libreta médica"
+                " manuscrita. Extrae todas las citas que aparezcan y"
+                " devuélvelas EXCLUSIVAMENTE en formato JSON válido que"
+                " contenga una clave llamada 'citas' con una lista de"
+                " objetos. Cada objeto debe tener exactamente estas tres"
+                " claves: 'Paciente', 'Hora' y 'Telefono'. Si algún dato no"
+                " aparece, escribe 'No especificado'. No incluyas explicaciones"
+                " ni texto fuera del JSON."
+            )
 
-          prompt = (
-              "Analiza esta imagen de una agenda o libreta médica manuscrita."
-              " Extrae todas las citas que aparezcan y devuélvelas"
-              " EXCLUSIVAMENTE en formato JSON válido que contenga una clave"
-              " llamada 'citas' con una lista de objetos. Cada objeto debe"
-              " tener exactamente estas tres claves: 'Paciente', 'Hora' y"
-              " 'Telefono'. Si algún dato no aparece, escribe 'No"
-              " especificado'. No incluyas explicaciones ni texto fuera del"
-              " JSON."
-          )
+            response = model.generate_content(
+                [prompt, imagen_optimizada], request_options={"timeout": 20}
+            )
 
-          response = model.generate_content([prompt, imagen_optimizada])
+            texto_respuesta = response.text.strip()
+            if texto_respuesta.startswith("```json"):
+              texto_respuesta = texto_respuesta[7:]
+            if texto_respuesta.endswith("```"):
+              texto_respuesta = texto_respuesta[:-3]
 
-          texto_respuesta = response.text.strip()
-          if texto_respuesta.startswith("```json"):
-            texto_respuesta = texto_respuesta[7:]
-          if texto_respuesta.endswith("```"):
-            texto_respuesta = texto_respuesta[:-3]
+            contenido_json = json.loads(texto_respuesta.strip())
+            lista_citas = (
+                contenido_json.get("citas")
+                or contenido_json.get("data")
+                or list(contenido_json.values())[0]
+            )
 
-          contenido_json = json.loads(texto_respuesta.strip())
-          lista_citas = (
-              contenido_json.get("citas")
-              or contenido_json.get("data")
-              or list(contenido_json.values())[0]
-          )
+            df_ia = pd.DataFrame(lista_citas)
+            if not df_ia.empty:
+              st.session_state["df_ia_procesado"] = df_ia
+              st.success("¡Citas extraídas correctamente de la libreta!")
+              st.rerun()
+            else:
+              st.warning(
+                  "⚠️ No se han encontrado citas legibles en la imagen."
+              )
 
-          df_ia = pd.DataFrame(lista_citas)
-          if not df_ia.empty:
-            st.session_state["df_ia_procesado"] = df_ia
-            st.success("¡Citas extraídas correctamente de la libreta!")
-          else:
-            st.warning("No se han encontrado citas claras en la imagen.")
-
-        except Exception as e:
-          st.error(f"Error al procesar la imagen con Gemini: {e}")
+          except Exception as e:
+            st.error(f"❌ Error al procesar la imagen con Gemini: {e}")
 
     if "df_ia_procesado" in st.session_state:
       st.write("📋 **Revisa y edita los datos si es necesario:**")
