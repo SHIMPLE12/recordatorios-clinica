@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta
 import io
 import json
+import os
 import urllib.parse
 from PIL import Image
-import openai
+import google.generativeai as genai
 import pandas as pd
 import streamlit as st
 
@@ -13,7 +14,7 @@ st.set_page_config(
 
 # --- CONTRASEÑA DE ACCESO ---
 CONTRASEÑA_MAESTRA = (
-    "prueba-2026"  # <--- Cambia esto por la contraseña que quieras dar a tus clientes
+    "prueba-2026"  # <--- Cambia esto por la contraseña que prefieras
 )
 
 st.sidebar.header("🔐 Acceso de Seguridad")
@@ -21,12 +22,11 @@ password_ingresada = st.sidebar.text_input(
     "Introduce la contraseña", type="password", placeholder="••••"
 )
 
-# Comprobamos si la contraseña es correcta
 if password_ingresada != CONTRASEÑA_MAESTRA:
   st.title("🔒 Acceso Restringido")
   st.warning(
       "⚠️ Por favor, introduce la contraseña correcta en la barra lateral para"
-      " acceder a la aplicación de recordatorios."
+      " acceder a la aplicación."
   )
   st.stop()
 
@@ -41,9 +41,15 @@ nombre_clinica = st.sidebar.text_input(
 
 st.sidebar.markdown("---")
 st.sidebar.info(
-    "💡 Puedes subir un archivo Excel de gestión o hacer una foto a tu libreta"
-    " de papel."
+    "💡 Sube un archivo Excel de gestión o haz una foto a tu libreta"
+    " manuscrita."
 )
+
+# --- CONFIGURACIÓN DE LA API DE GEMINI ---
+# Lee la clave de la variable de entorno de Render (GOOGLE_API_KEY)
+api_key_google = os.environ.get("GOOGLE_API_KEY")
+if api_key_google:
+  genai.configure(api_key=api_key_google)
 
 # --- CONTENIDO PRINCIPAL ---
 st.title("📅 Recordatorios Automáticos de Citas")
@@ -52,7 +58,6 @@ st.write(
     " mañana."
 )
 
-# Selector de modo (Excel o Foto de Libreta)
 modo_entrada = st.radio(
     "¿Cómo gestionáis las citas en vuestra clínica?",
     ["📁 Subir archivo Excel", "📸 Hacer foto a la libreta de papel"],
@@ -61,7 +66,7 @@ modo_entrada = st.radio(
 df_filtrado = pd.DataFrame()
 
 
-# Función para comprimir y redimensionar imágenes (para ahorrar tokens y acelerar la IA)
+# Función para redimensionar imágenes (para ahorrar recursos y acelerar la IA)
 def preparar_imagen_para_ia(
     archivo_subido, ancho_maximo=1000, calidad_jpg=80
 ):
@@ -80,7 +85,7 @@ def preparar_imagen_para_ia(
   buffer_salida = io.BytesIO()
   imagen.save(buffer_salida, format="JPEG", quality=calidad_jpg)
   buffer_salida.seek(0)
-  return buffer_salida.read()
+  return Image.open(buffer_salida)
 
 
 # ==========================================
@@ -126,8 +131,8 @@ if modo_entrada == "📁 Subir archivo Excel":
 
       if not col_paciente or not col_telefono:
         st.error(
-            "⚠️ No se han podido detectar las columnas de 'Paciente/Nom' y"
-            f" 'Teléfono/Telèfon'. Columnas encontradas: {list(df.columns)}"
+            "⚠️ No se han podido detectar las columnas de 'Paciente' y"
+            f" 'Teléfono'. Columnas encontradas: {list(df.columns)}"
         )
       else:
         renombrar_dict = {
@@ -144,7 +149,6 @@ if modo_entrada == "📁 Subir archivo Excel":
 
         if "Fecha" in df.columns:
           mañana = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-
           df["Fecha_str"] = pd.to_datetime(
               df["Fecha"], errors="coerce"
           ).dt.strftime("%Y-%m-%d")
@@ -179,12 +183,12 @@ if modo_entrada == "📁 Subir archivo Excel":
       st.error(f"❌ Error al procesar el archivo Excel: {e}")
 
 # ==========================================
-# OPCIÓN 2: FOTO DE LA LIBRETA (CON IA)
+# OPCIÓN 2: FOTO DE LA LIBRETA (CON GEMINI)
 # ==========================================
 elif modo_entrada == "📸 Hacer foto a la libreta de papel":
   st.info(
-      "💡 Sube una foto clara de la página de la libreta con las citas. La IA"
-      " extraerá los datos automáticamente."
+      "💡 Sube una foto clara de la página de la libreta. Gemini extraerá los"
+      " datos automáticamente."
   )
   foto_subida = st.file_uploader(
       "Sube la foto de la libreta", type=["jpg", "jpeg", "png"]
@@ -193,59 +197,36 @@ elif modo_entrada == "📸 Hacer foto a la libreta de papel":
   if foto_subida is not None:
     st.image(foto_subida, caption="Foto de la libreta", use_column_width=True)
 
-    if st.button("✨ Procesar libreta con IA"):
-      with st.spinner(
-          "Analizando la caligrafía y extrayendo las citas con IA..."
-      ):
+    if st.button("✨ Procesar libreta con Gemini"):
+      with st.spinner("Analizando la libreta con Google Gemini..."):
         try:
-          # 1. Preparamos la imagen
-          bytes_imagen = preparar_imagen_para_ia(foto_subida)
-          imagen_base64 = (
-              __import__("base64").b64encode(bytes_imagen).decode("utf-8")
+          # 1. Preparamos la imagen con PIL
+          imagen_optimizada = preparar_imagen_para_ia(foto_subida)
+
+          # 2. Llamada al modelo Gemini con visión (gemini-1.5-flash)
+          model = genai.GenerativeModel("gemini-1.5-flash")
+
+          prompt = (
+              "Analiza esta imagen de una agenda o libreta médica manuscrita."
+              " Extrae todas las citas que aparezcan y devuélvelas"
+              " EXCLUSIVAMENTE en formato JSON válido que contenga una clave"
+              " llamada 'citas' con una lista de objetos. Cada objeto debe"
+              " tener exactamente estas tres claves: 'Paciente', 'Hora' y"
+              " 'Telefono'. Si algún dato no aparece, escribe 'No"
+              " especificado'. No incluyas explicaciones ni texto fuera del"
+              " JSON."
           )
 
-          # 2. Llamada a OpenAI (GPT-4o-mini)
-          client = openai.OpenAI()  # Lee automáticamente la variable de entorno OPENAI_API_KEY de Render
+          response = model.generate_content([prompt, imagen_optimizada])
 
-          response = client.chat.completions.create(
-              model="gpt-4o-mini",
-              messages=[
-                  {
-                      "role": "system",
-                      "content": (
-                          "Eres un asistente experto en digitalización de"
-                          " agendas médicas. Analiza la imagen de la libreta,"
-                          " extrae las citas y devuélvelas ÚNICAMENTE en formato"
-                          " JSON estricto con una clave 'citas' que contenga una"
-                          " lista de objetos con las claves exactas: 'Paciente',"
-                          " 'Hora' y 'Telefono'. Si falta algún dato, pon 'No"
-                          " especificado'."
-                      ),
-                  },
-                  {
-                      "role": "user",
-                      "content": [
-                          {
-                              "type": "text",
-                              "text": (
-                                  "Extrae las citas de esta página de la"
-                                  " libreta:"
-                              ),
-                          },
-                          {
-                              "type": "image_url",
-                              "image_url": {
-                                  "url": f"data:image/jpeg;base64,{imagen_base64}"
-                              },
-                          },
-                      ],
-                  },
-              ],
-              response_format={"type": "json_object"},
-          )
+          # Limpiamos la respuesta por si incluye bloques de código markdown tipo ```json
+          texto_respuesta = response.text.strip()
+          if texto_respuesta.startswith("```json"):
+            texto_respuesta = texto_respuesta[7:]
+          if texto_respuesta.endswith("```"):
+            texto_respuesta = texto_respuesta[:-3]
 
-          # 3. Parsear resultado
-          contenido_json = json.loads(response.choices[0].message.content)
+          contenido_json = json.loads(texto_respuesta.strip())
           lista_citas = (
               contenido_json.get("citas")
               or contenido_json.get("data")
@@ -260,11 +241,9 @@ elif modo_entrada == "📸 Hacer foto a la libreta de papel":
             st.warning("No se han encontrado citas claras en la imagen.")
 
         except Exception as e:
-          st.error(
-              f"Error al conectar con la IA o procesar la imagen: {e}"
-          )
+          st.error(f"Error al procesar la imagen con Gemini: {e}")
 
-    # Si ya tenemos datos procesados por la IA en la sesión, los mostramos
+    # Mostrar la tabla editable si ya se procesó
     if "df_ia_procesado" in st.session_state:
       st.write("📋 **Revisa y edita los datos si es necesario:**")
       df_filtrado = st.data_editor(
@@ -273,7 +252,7 @@ elif modo_entrada == "📸 Hacer foto a la libreta de papel":
 
 
 # ==========================================
-# 3. GENERADOR DE MENSAJES (Común para ambos)
+# 3. GENERADOR DE MENSAJES DE WHATSAPP
 # ==========================================
 if not df_filtrado.empty:
   st.markdown("---")
@@ -301,7 +280,7 @@ if not df_filtrado.empty:
 
     if telefono_limpio:
       mensaje_encoded = urllib.parse.quote(mensaje)
-      whatsapp_url = f"https://wa.me/{telefono_limpio}?text={mensaje_encoded}"
+      whatsapp_url = f"[https://wa.me/](https://wa.me/){telefono_limpio}?text={mensaje_encoded}"
       sms_url = f"sms:{telefono_limpio}?body={mensaje_encoded}"
 
       st.markdown(
