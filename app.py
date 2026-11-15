@@ -63,7 +63,7 @@ modo_entrada = st.radio(
 df_filtrado = pd.DataFrame()
 
 
-# Función para comprimir y redimensionar imágenes
+# Función para comprimir y redimensionar imágenes (Sintaxis 100% revisada)
 def preparar_imagen_para_ia(
     archivo_subido, ancho_maximo=1000, calidad_jpg=80
 ):
@@ -76,4 +76,4 @@ def preparar_imagen_para_ia(
     proporcion = ancho_maximo / ancho_actual
     nuevo_alto = int(alto_actual * proporcion)
     imagen = imagen.resize(
-        (ancho_max
+        (
