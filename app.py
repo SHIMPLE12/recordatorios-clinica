@@ -52,7 +52,7 @@ def preparar_imagen(archivo):
 
 
 # ==========================================
-# 1. SUBIR EXCEL
+# 1. SUBIR EXCEL (CON FILTRADO DE MAÑANA)
 # ==========================================
 if modo_entrada == "📁 Subir archivo Excel":
   archivo = st.file_uploader("Sube tu Excel (.xlsx)", type=["xlsx", "xls"])
@@ -117,24 +117,32 @@ if modo_entrada == "📁 Subir archivo Excel":
       st.error(f"Error al leer el Excel: {e}")
 
 # ==========================================
-# 2. FOTO DE LA LIBRETA (GEMINI 3.8 FLASH)
+# 2. FOTO DE LA LIBRETA (CON GEMINI 3.8 FLASH Y FILTRO DE FECHA)
 # ==========================================
 elif modo_entrada == "📸 Hacer foto a la libreta":
   foto = st.file_uploader("Sube la foto", type=["jpg", "jpeg", "png"])
   if foto is not None:
     st.image(foto, caption="Foto subida", use_container_width=True)
+
     if st.button("✨ Procesar con Gemini"):
-      with st.spinner("Analizando con Gemini (3.8 Flash)..."):
+      mañana = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+      with st.spinner(
+          f"Analizando imagen con Gemini (buscando citas para el {mañana})..."
+      ):
         try:
           img_opt = preparar_imagen(foto)
           model = genai.GenerativeModel("gemini-3.8-flash")
+
           prompt = (
-              "Analiza esta imagen de una agenda o libreta. Extrae todas las"
-              " citas y devuélvelas EXCLUSIVAMENTE en formato JSON con una"
-              " clave llamada 'citas' que sea una lista de objetos. Cada"
-              " objeto debe tener exactamente las claves: 'Paciente',"
-              " 'Hora', 'Telefono'."
+              f"Hoy es {datetime.now().strftime('%Y-%m-%d')}. Analiza esta"
+              f" imagen de una agenda o libreta. Extrae ÚNICAMENTE las citas"
+              f" que correspondan al día de mañana ({mañana}). Devuélvelas"
+              " EXCLUSIVAMENTE en formato JSON con una clave llamada 'citas'"
+              " que sea una lista de objetos. Cada objeto debe tener"
+              " exactamente las claves: 'Paciente', 'Hora', 'Telefono'."
+              " Si no hay citas para mañana, devuelve una lista vacía."
           )
+
           response = model.generate_content([prompt, img_opt])
 
           texto = response.text.strip()
@@ -148,9 +156,18 @@ elif modo_entrada == "📸 Hacer foto a la libreta":
               data.get("citas") or data.get("data") or list(data.values())[0]
           )
 
-          st.session_state["df_ia"] = pd.DataFrame(lista)
-          st.success("¡Procesado correctamente!")
-          st.rerun()
+          df_ia = pd.DataFrame(lista)
+          if not df_ia.empty:
+            st.session_state["df_ia"] = df_ia
+            st.success(
+                f"✅ ¡Citas para mañana ({mañana}) extraídas de la libreta!"
+            )
+            st.rerun()
+          else:
+            st.warning(
+                f"⚠️ La IA no ha encontrado citas para mañana ({mañana}) en la"
+                " foto."
+            )
         except Exception as e:
           st.error(f"Error en Gemini: {e}")
 
