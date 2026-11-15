@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import io
 import json
 import os
 import urllib.parse
@@ -44,15 +45,28 @@ modo_entrada = st.radio(
 df_filtrado = pd.DataFrame()
 
 
-def preparar_imagen(archivo):
-  img = Image.open(archivo)
-  if img.mode in ("RGBA", "P"):
-    img = img.convert("RGB")
-  return img
+# Función optimizada: reduce drásticamente el peso de la foto para que vuele
+def preparar_imagen_rapida(archivo_subido, ancho_maximo=800, calidad_jpg=75):
+  imagen = Image.open(archivo_subido)
+  if imagen.mode in ("RGBA", "P"):
+    imagen = imagen.convert("RGB")
+
+  ancho_actual, alto_actual = imagen.size
+  if ancho_actual > ancho_maximo:
+    proporcion = ancho_maximo / ancho_actual
+    nuevo_alto = int(alto_actual * proporcion)
+    imagen = imagen.resize(
+        (ancho_maximo, nuevo_alto), Image.Resampling.LANCZOS
+    )
+
+  buffer_salida = io.BytesIO()
+  imagen.save(buffer_salida, format="JPEG", quality=calidad_jpg)
+  buffer_salida.seek(0)
+  return Image.open(buffer_salida)
 
 
 # ==========================================
-# 1. SUBIR EXCEL (CON FILTRADO DE MAÑANA)
+# 1. SUBIR EXCEL
 # ==========================================
 if modo_entrada == "📁 Subir archivo Excel":
   archivo = st.file_uploader("Sube tu Excel (.xlsx)", type=["xlsx", "xls"])
@@ -117,7 +131,7 @@ if modo_entrada == "📁 Subir archivo Excel":
       st.error(f"Error al leer el Excel: {e}")
 
 # ==========================================
-# 2. FOTO DE LA LIBRETA (CON GEMINI 3.8 FLASH Y FILTRO DE FECHA)
+# 2. FOTO DE LA LIBRETA (ULTRA RÁPIDA)
 # ==========================================
 elif modo_entrada == "📸 Hacer foto a la libreta":
   foto = st.file_uploader("Sube la foto", type=["jpg", "jpeg", "png"])
@@ -126,21 +140,20 @@ elif modo_entrada == "📸 Hacer foto a la libreta":
 
     if st.button("✨ Procesar con Gemini"):
       mañana = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
-      with st.spinner(
-          f"Analizando imagen con Gemini (buscando citas para el {mañana})..."
-      ):
+      with st.spinner("Procesando imagen rápidamente..."):
         try:
-          img_opt = preparar_imagen(foto)
+          # Comprimimos la imagen al instante antes de enviarla
+          img_opt = preparar_imagen_rapida(foto)
           model = genai.GenerativeModel("gemini-3.8-flash")
 
           prompt = (
               f"Hoy es {datetime.now().strftime('%Y-%m-%d')}. Analiza esta"
-              f" imagen de una agenda o libreta. Extrae ÚNICAMENTE las citas"
-              f" que correspondan al día de mañana ({mañana}). Devuélvelas"
-              " EXCLUSIVAMENTE en formato JSON con una clave llamada 'citas'"
-              " que sea una lista de objetos. Cada objeto debe tener"
-              " exactamente las claves: 'Paciente', 'Hora', 'Telefono'."
-              " Si no hay citas para mañana, devuelve una lista vacía."
+              f" imagen. Extrae ÚNICAMENTE las citas que correspondan al día de"
+              f" mañana ({mañana}). Devuélvelas EXCLUSIVAMENTE en formato JSON"
+              " con una clave llamada 'citas' que sea una lista de objetos."
+              " Cada objeto debe tener exactamente las claves: 'Paciente',"
+              " 'Hora', 'Telefono'. Si no hay citas para mañana, devuelve una"
+              " lista vacía."
           )
 
           response = model.generate_content([prompt, img_opt])
@@ -160,7 +173,7 @@ elif modo_entrada == "📸 Hacer foto a la libreta":
           if not df_ia.empty:
             st.session_state["df_ia"] = df_ia
             st.success(
-                f"✅ ¡Citas para mañana ({mañana}) extraídas de la libreta!"
+                f"✅ ¡Citas para mañana ({mañana}) extraídas al instante!"
             )
             st.rerun()
           else:
