@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+import json
 import os
 import urllib.parse
 from PIL import Image
@@ -126,16 +127,36 @@ elif modo_entrada == "📸 Hacer foto a la libreta":
       with st.spinner("Analizando con Gemini (3.8 Flash)..."):
         try:
           img_opt = preparar_imagen(foto)
-          # Usamos estrictamente el modelo gemini-3.8-flash pedido por Google
           model = genai.GenerativeModel("gemini-3.8-flash")
           prompt = (
-              "Extrae las citas de esta imagen y devuélvelas estrictamente en"
-              " JSON con claves 'Paciente', 'Hora', 'Telefono'."
+              "Analiza esta imagen de una agenda o libreta. Extrae todas las"
+              " citas y devuélvelas EXCLUSIVAMENTE en formato JSON con una"
+              " clave llamada 'citas' que sea una lista de objetos. Cada"
+              " objeto debe tener exactamente las claves: 'Paciente',"
+              " 'Hora', 'Telefono'."
           )
           response = model.generate_content([prompt, img_opt])
+
+          texto = response.text.strip()
+          if texto.startswith("```json"):
+            texto = texto[7:]
+          if texto.endswith("```"):
+            texto = texto[:-3]
+
+          data = json.loads(texto.strip())
+          lista = (
+              data.get("citas") or data.get("data") or list(data.values())[0]
+          )
+
+          st.session_state["df_ia"] = pd.DataFrame(lista)
           st.success("¡Procesado correctamente!")
+          st.rerun()
         except Exception as e:
           st.error(f"Error en Gemini: {e}")
+
+    if "df_ia" in st.session_state:
+      st.write("📋 **Revisa los datos extraídos:**")
+      df_filtrado = st.data_editor(st.session_state["df_ia"], num_rows="dynamic")
 
 # ==========================================
 # 3. MENSAJES DE WHATSAPP
@@ -147,7 +168,9 @@ if not df_filtrado.empty:
   for index, row in df_filtrado.iterrows():
     paciente = str(row.get("Paciente", "Paciente"))
     hora = str(row.get("Hora", "su hora"))
-    telefono_raw = str(row.get("Teléfono", ""))
+    telefono_raw = str(
+        row.get("Teléfono", row.get("Telefono", row.get("Tel", "")))
+    )
     telefono_limpio = "".join(filter(str.isdigit, telefono_raw))
 
     mensaje = (
