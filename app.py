@@ -13,9 +13,7 @@ st.set_page_config(
 )
 
 # --- CONTRASEÑA DE ACCESO ---
-CONTRASEÑA_MAESTRA = (
-    "prueba-2026"  # <--- Cambia esto por la contraseña que quieras
-)
+CONTRASEÑA_MAESTRA = "prueba-2026"
 
 st.sidebar.header("🔐 Acceso de Seguridad")
 password_ingresada = st.sidebar.text_input(
@@ -182,7 +180,7 @@ if modo_entrada == "📁 Subir archivo Excel":
       st.error(f"❌ Error al procesar el archivo Excel: {e}")
 
 # ==========================================
-# OPCIÓN 2: FOTO DE LA LIBRETA (CON GEMINI ACTUALIZADO)
+# OPCIÓN 2: FOTO DE LA LIBRETA (CON GEMINI 3.8 FLASH)
 # ==========================================
 elif modo_entrada == "📸 Hacer foto a la libreta de papel":
   st.info(
@@ -202,8 +200,8 @@ elif modo_entrada == "📸 Hacer foto a la libreta de papel":
           # 1. Preparamos la imagen con PIL
           imagen_optimizada = preparar_imagen_para_ia(foto_subida)
 
-          # 2. Usamos el modelo actual compatible con la API de Google (gemini-2.5-flash)
-          model = genai.GenerativeModel("gemini-2.5-flash")
+          # 2. Usamos el modelo correcto pedido por Google
+          model = genai.GenerativeModel("gemini-3.8-flash")
 
           prompt = (
               "Analiza esta imagen de una agenda o libreta médica manuscrita."
