@@ -278,18 +278,19 @@ if not df_filtrado.empty:
         key=f"msg_{index}",
     )
 
+    
     if telefono_limpio:
       mensaje_encoded = urllib.parse.quote(mensaje)
-      whatsapp_url = f"[https://wa.me/](https://wa.me/){telefono_limpio}?text={mensaje_encoded}"
+      whatsapp_url = f"https://wa.me/{telefono_limpio}?text={mensaje_encoded}"
       sms_url = f"sms:{telefono_limpio}?body={mensaje_encoded}"
 
       st.markdown(
           f"""
                     <div style="margin-bottom: 20px;">
-                        <a href="{whatsapp_url}" target="_blank" style="display:block; background-color:#25D366; color:white; padding:10px 15px; border-radius:8px; text-decoration:none; font-weight:bold; text-align:center; margin-bottom: 8px;">
+                        <a href="{whatsapp_url}" style="display:block; background-color:#25D366; color:white; padding:12px 15px; border-radius:8px; text-decoration:none; font-weight:bold; text-align:center; margin-bottom: 8px;">
                             📲 Enviar a WhatsApp de {paciente}
                         </a>
-                        <a href="{sms_url}" style="display:block; background-color:#007AFF; color:white; padding:10px 15px; border-radius:8px; text-decoration:none; font-weight:bold; text-align:center;">
+                        <a href="{sms_url}" style="display:block; background-color:#007AFF; color:white; padding:12px 15px; border-radius:8px; text-decoration:none; font-weight:bold; text-align:center;">
                             ✉️ Enviar por SMS a {paciente}
                         </a>
                     </div>
